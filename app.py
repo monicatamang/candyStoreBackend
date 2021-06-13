@@ -27,13 +27,17 @@ def check_db_connection_and_cursor(conn, cursor):
 app = Flask(__name__)
 CORS(app)
 
-# Creating a POST request to create a new account for users
+# Creating a POST request to the "signup" endpoint to create a new account for users
 @app.post("/signup")
 def create_user():
     # Creating a try-except block to catch errors when users sign up
     try:
         username = request.json['username']
         password = request.json['password']
+    # Raising the KeyError exception if the user sends data with the incorrect key names
+    except KeyError:
+        traceback.print_exc()
+        print("Key Error. Incorrect Key name of data.")
     # Raising the UnboundLocalError exception if one or more variables don't exist due to invalid data being sent to the database
     except UnboundLocalError:
         traceback.print_exc()
@@ -61,13 +65,13 @@ def create_user():
     check_db_connection_and_cursor(conn, cursor)
 
     # Assign the new id of the candy to be a negative number which indicates that a new id was not created
-    new_id = -1
+    new_user_id = -1
 
     # Creating a try-except block to catch errors when storing the new user into the database
     try:
         cursor.execute("INSERT INTO users(username, password) VALUES(?, ?)", [username, password])
         conn.commit()
-        new_id = cursor.lastrowid
+        new_user_id = cursor.lastrowid
     # Raising the DataError exception if the database is unable to process data
     except mariadb.DataError:
         traceback.print_exc()
@@ -97,20 +101,28 @@ def create_user():
     close_db_connection_and_cursor(conn, cursor)
 
     # If the new id was not created, send the user a client error response
-    if(new_id == -1):
+    if(new_user_id == -1):
         return Response("Failed to sign up.", mimetype="text/plain", status=500)
     # If the new id was created, send the user their credentials in JSON format and a client success response
     else:
-        new_signup_json = json.dumps([username, password, new_id], default=str)
+        new_signup = {
+            'id': new_user_id,
+            'username': username,
+        }
+        new_signup_json = json.dumps(new_signup, default=str)
         return Response(new_signup_json, mimetype="application/json", status=201)
 
-# Created a POST request to log in users into their exisiting account
+# Created a POST request to the "login" endpoint to log in users into their exisiting account
 @app.post("/login")
 def login_user():
     # Using a try-except block to catch errors when the user logs in
     try:
         username = request.json['username']
         password = request.json['password']
+    # Raising the KeyError exception if the user sends data with the incorrect key names
+    except KeyError:
+        traceback.print_exc()
+        print("Key Error. Incorrect Key name of data.")
     # Raising the UnboundLocalError exception if one or more variables don't exist due to invalid data being sent to the database
     except UnboundLocalError:
         traceback.print_exc()
@@ -177,11 +189,15 @@ def login_user():
 
     # If the username and password matches with the username and password stored in the database, send the user all of their login credentials and a client success response
     if(row_count == 1):
-        user_login_json = json.dumps([username, password, database_login_info[0][2]], default=str)
+        user_login = {
+            'id': database_login_info[0][2],
+            'username': username,
+        }
+        user_login_json = json.dumps(user_login, default=str)
         return Response(user_login_json, mimetype="application/json", status=200)
-    # If the username and password do not match, send a server error response
+    # If the username and password do not match, send a client error response
     else:
-        return Response("Failed to login.", mimetype="text/plain", status=500)
+        return Response("Failed to login.", mimetype="text/plain", status=400)
 
 # Creating a GET request to the "candy" endpoint to get all candies
 @app.get("/candy")
@@ -199,7 +215,7 @@ def get_candy_list():
     # Creating a try-except block to catch errors when getting all candies from the database
     try:
         # Getting the all candies from the database
-        cursor.execute("SELECT name, description, price_in_dollars, image_url, id FROM candy")
+        cursor.execute("SELECT name, description, price_in_dollars, image_url, user_id, id FROM candy")
         candy_list = cursor.fetchall()
     # Raising the OperationalError exception for things that are not in control of the programmer, printing an error message and the traceback
     except mariadb.OperationalError:
@@ -239,10 +255,11 @@ def create_candy():
         candy_description = request.json.get('description')
         candy_price = float(request.json.get('priceInDollars'))
         candy_image = request.json.get('imageUrl')
+        user_id = int(request.json.get('userId'))
 
         # Placing the if statements in the try-except block so that in the case where one of the lines above fail to run, the errors will be "caught" by the exceptions
         # If the candy name or price is not provided by the user, send a client error response
-        if(candy_name == None or candy_price == None):
+        if(candy_name == None or candy_price == None or user_id == None):
             return Response("Data Error. Invalid data was sent to the database.", mimetype="text/plain", status=400)
         
         # If the user creates a candy without adding content to the description, set the description as an empty string
@@ -252,6 +269,10 @@ def create_candy():
         # If the user creates a candy without adding a image URL, set the image URL as an empty string
         if(candy_image == None or candy_image == ""):
             candy_image = ""
+    # Raising the KeyError exception if the user sends data with the incorrect key names
+    except KeyError:
+        traceback.print_exc()
+        print("Key Error. Incorrect Key name of data.")
     # Raising the UnboundLocalError exception if one or more variables don't exist due to invalid data being sent to the database
     except UnboundLocalError:
         traceback.print_exc()
@@ -279,15 +300,23 @@ def create_candy():
     check_db_connection_and_cursor(conn, cursor)
 
     # Assign the new id of the candy to be a negative number which indicates that a new id was not created
-    new_id = -1
+    new_candy_id = -1
 
     # Creating a try-except block to catch errors when inserting the new candy into the database
     try:
         # Inserting the new candy into the database and commiting the changes
-        cursor.execute("INSERT INTO candy(name, description, price_in_dollars, image_url) VALUES(?, ?, ?, ?)", [candy_name, candy_description, candy_price, candy_image])
+        cursor.execute("INSERT INTO candy(name, description, price_in_dollars, image_url, user_id) VALUES(?, ?, ?, ?, ?)", [candy_name, candy_description, candy_price, candy_image, user_id])
         conn.commit()
         # Getting the id of new candy
-        new_id = cursor.lastrowid
+        new_candy_id = cursor.lastrowid
+    # Raising an IndexError exception if the user enters an id that does not exist in the database
+    except IndexError:
+        traceback.print_exc()
+        print("The candy id of does not exist in the database.")
+    # Raising the UnboundLocalError exception if one or more variables don't exist due to invalid data being sent to the database
+    except UnboundLocalError:
+        traceback.print_exc()
+        print("Data Error. Referencing variables that are not declared.")
     # Raising an IntegrityError exception if the user sends a candy name that already exists in the database, printing an error message and the traceback
     except mariadb.IntegrityError:
         traceback.print_exc()
@@ -317,11 +346,11 @@ def create_candy():
     close_db_connection_and_cursor(conn, cursor)
 
     # If the new id was not created, send the user a client error response
-    if(new_id == -1):
+    if(new_candy_id == -1):
         return Response("Failed to create a new candy.", mimetype="text/plain", status=500)
     # If the new id was created, send the user the new candy in JSON format and a client success response
     else:
-        new_candy_json = json.dumps([candy_name, candy_description, candy_price, candy_image, new_id], default=str)
+        new_candy_json = json.dumps([candy_name, candy_description, candy_price, candy_image, user_id, new_candy_id], default=str)
         return Response(new_candy_json, mimetype="application/json", status=201)
 
 # Creating a DELETE request to the "candy" endpoint to delete an exisiting candy
@@ -330,7 +359,12 @@ def delete_candy():
     # Creating a try-except block to catch errors when receiving the candy id sent by the user
     try:
         # Converting the id into an integer data type
-        candy_id = int(request.json['id'])
+        candy_id = int(request.json['candyId'])
+        user_id = int(request.json['userId'])
+    # Raising the KeyError exception if the user sends data with the incorrect key names
+    except KeyError:
+        traceback.print_exc()
+        print("Key Error. Incorrect Key name of data.")
     # Raising an IndexError exception if the user enters an id that does not exist in the database
     except IndexError:
         traceback.print_exc()
@@ -363,7 +397,7 @@ def delete_candy():
     # Creating a try-except block to catch errors when deleting a candy from the database
     try:
         # Deleting a candy from the database and committing the changes
-        cursor.execute("DELETE FROM candy WHERE id = ?", [candy_id])
+        cursor.execute("DELETE FROM candy WHERE user_id = ? AND id = ? ", [user_id, candy_id])
         conn.commit()
         # Getting the number of rows that have been deleted from the database
         row_count = cursor.rowcount
@@ -410,9 +444,14 @@ def edit_candy():
     # Creating a try-except block to catch errors when getting all the old candies from the database
     try:
         # Converting the candy id into an integer and getting the unedited candy from the database
-        candy_id = int(request.json['id'])
-        cursor.execute("SELECT name, description, price_in_dollars, image_url, id FROM candy WHERE id = ?", [candy_id])
+        candy_id = int(request.json['candyId'])
+        user_id = int(request.json['userId'])
+        cursor.execute("SELECT name, description, price_in_dollars, image_url, user_id, id FROM candy WHERE user_id = ? AND id = ?", [user_id, candy_id])
         old_candy = cursor.fetchall()
+    # Raising the KeyError exception if the user sends data with the incorrect key names
+    except KeyError:
+        traceback.print_exc()
+        print("Key Error. Incorrect Key name of data.")
     # Raising an IndexError exception if the user enters an id that does not exist in the database
     except IndexError:
         traceback.print_exc()
@@ -436,7 +475,7 @@ def edit_candy():
     close_db_connection_and_cursor(conn, cursor)
 
     # If the candy id was invalid or the list of old candies could not be retrieved from the database, send a client server error
-    if(candy_id == None or old_candy == None):
+    if(candy_id == None or user_id == None or old_candy == None):
         return Response("Invalid data being passed to the database.", mimetype="text/plain", status=400)
 
     # Creating a try-except block to catch errors when updating a candy
@@ -468,6 +507,10 @@ def edit_candy():
         # If the database contains the old candy image which initially had no content and the user has not updated the new image with content, set the image as an empty string
         elif((old_candy[0][3] == None or old_candy[0][3] == "") and (candy_image == None or candy_image == "")):
             candy_image == ""
+    # Raising the KeyError exception if the user sends data with the incorrect key names
+    except KeyError:
+        traceback.print_exc()
+        print("Key Error. Incorrect Key name of data.")
     # Raising the UnboundLocalError exception if one or more variables don't exist due to invalid data being sent to the database
     except UnboundLocalError:
         traceback.print_exc()
@@ -500,7 +543,7 @@ def edit_candy():
     # Creating a try-except block to catch errors when updating the candy to the database
     try:
         # Replacing the edited candy with the old candy and commiting the changes
-        cursor.execute("UPDATE candy SET name = ?, description = ?, price_in_dollars = ?, image_url = ? WHERE id = ?", [candy_name, candy_description, candy_price, candy_image, candy_id])
+        cursor.execute("UPDATE candy SET name = ?, description = ?, price_in_dollars = ?, image_url = ? WHERE user_id = ? AND id = ?", [candy_name, candy_description, candy_price, candy_image, user_id, candy_id])
         conn.commit()
         # Getting the number of rows that have been updated in the database
         row_count = cursor.rowcount
@@ -530,7 +573,7 @@ def edit_candy():
 
     # If the edited candy was successfully stored into the database, send the user the edited candy in JSON format and a client success response
     if(row_count == 1):
-        edited_candy_json = json.dumps([candy_name, candy_description, candy_price, candy_image, candy_id], default=str)
+        edited_candy_json = json.dumps([candy_name, candy_description, candy_price, candy_image, user_id, candy_id], default=str)
         return Response(edited_candy_json, mimetype="application/json", status=200)
     # If the database failed to store the edited candy, send the user a server error response
     else:
