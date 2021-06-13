@@ -74,4 +74,38 @@ def create_candy():
         new_candy_json = json.dumps([new_id, candy_name, candy_description, candy_price, candy_image], default=str)
         return Response(new_candy_json, mimetype="application/json", status=201)
 
+@app.delete("/candy")
+def delete_candy():
+    try:
+        candy_id = int(request.json['id'])
+    except:
+        print("Invalid data being passed to the database.")
+        traceback.print_exc()
+        return Response("Invalid data being passed to the database.", mimetype="text/plain", status=400)
+
+    conn = dbconnect.open_db_connection()
+    cursor = dbconnect.create_db_cursor(conn)
+    row_count = 0
+
+    if(conn == None or cursor == None):
+        print("Error in the database.")
+        dbconnect.close_cursor(cursor)
+        dbconnect.close_db_connection(conn)
+
+    try:
+        cursor.execute("DELETE FROM candy WHERE id = ?", [candy_id])
+        conn.commit()
+        row_count = cursor.rowcount
+    except:
+        print("An occur has occured.")
+        traceback.print_exc()
+
+    dbconnect.close_cursor(cursor)
+    dbconnect.close_db_connection(conn)
+
+    if(row_count == 1):
+        return Response("Candy was successfully deleted.", mimetype="application/json", status=200)
+    else:
+        return Response("Failed to delete candy.", mimetype="text/plain", status=500)
+
 app.run(debug=True)
