@@ -259,7 +259,7 @@ def create_candy():
 
         # Placing the if statements in the try-except block so that in the case where one of the lines above fail to run, the errors will be "caught" by the exceptions
         # If the candy name or price is not provided by the user, send a client error response
-        if(candy_name == None or candy_price == None or user_id == None):
+        if(candy_name == None or candy_name == "" or candy_price == None or candy_price == "" or user_id == None or user_id == ""):
             return Response("Data Error. Invalid data was sent to the database.", mimetype="text/plain", status=400)
         
         # If the user creates a candy without adding content to the description, set the description as an empty string
