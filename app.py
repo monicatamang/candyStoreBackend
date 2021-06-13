@@ -34,3 +34,44 @@ def get_candy_list():
     else:
         candy_list_json = json.dumps(candy_list, default=str)
         return Response(candy_list_json, mimetype="application/json", status=200)
+
+@app.post("/candy")
+def create_candy():
+    try:
+        candy_name = str(request.json['name'])
+        candy_description = str(request.json['description'])
+        candy_price = float(request.json['priceInDollars'])
+        candy_image = str(request.json['imageUrl'])
+
+    except:
+        print("Invalid data being passed to the database.")
+        traceback.print_exc()
+        return Response("Invalid data being passed to the database.", mimetype="text/plain", status=400)
+
+    conn = dbconnect.open_db_connection()
+    cursor = dbconnect.create_db_cursor(conn)
+    new_id = -1
+
+    if(conn == None or cursor == None):
+        print("Error in the database.")
+        dbconnect.close_cursor(cursor)
+        dbconnect.close_db_connection(conn)
+
+    try:
+        cursor.execute("INSERT INTO candy(name, description, price_in_dollars, image_url) VALUES(?, ?, ?, ?)", [candy_name, candy_description, candy_price, candy_image])
+        conn.commit()
+        new_id = cursor.lastrowid
+    except:
+        print("An occur has occured.")
+        traceback.print_exc()
+
+    dbconnect.close_cursor(cursor)
+    dbconnect.close_db_connection(conn)
+
+    if(new_id == -1):
+        return Response("Failed to create a new candy.", mimetype="text/plain", status=500)
+    else:
+        new_candy_json = json.dumps([new_id, candy_name, candy_description, candy_price, candy_image], default=str)
+        return Response(new_candy_json, mimetype="application/json", status=201)
+
+app.run(debug=True)
