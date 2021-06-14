@@ -234,8 +234,8 @@ def get_candy_list():
 
     # Creating a try-except block to catch errors when getting all candies from the database
     try:
-        # Getting the all candies from the database
-        cursor.execute("SELECT name, description, price_in_dollars, image_url, user_id, id FROM candy")
+        # Getting the all candies and username from the database, ordering the data by the candy post id in descending order
+        cursor.execute("SELECT c.name, c.description, c.price_in_dollars, c.image_url, c.user_id, c.id, u.username FROM users u INNER JOIN candy c ON c.user_id = u.id ORDER BY c.id DESC")
         candy_list = cursor.fetchall()
     # Raising the OperationalError exception for things that are not in control of the programmer, printing an error message and the traceback
     except mariadb.OperationalError:
@@ -320,6 +320,7 @@ def create_candy():
 
     # Assign the new id of the candy to be a negative number which indicates that a new id was not created
     new_candy_id = -1
+    new_candy = None
 
     # Creating a try-except block to catch errors when inserting the new candy into the database
     try:
@@ -328,6 +329,10 @@ def create_candy():
         conn.commit()
         # Getting the id of the new candy
         new_candy_id = cursor.lastrowid
+
+        # Getting the new candy data and username from the database
+        cursor.execute("SELECT c.name, c.description, c.price_in_dollars, c.image_url, c.user_id, c.id, u.username FROM users u INNER JOIN candy c ON c.user_id = u.id WHERE u.id = ? AND c.id = ?", [user_id, new_candy_id])
+        new_candy = cursor.fetchall()
     # Raising an IndexError exception if the user enters an id that does not exist in the database, printing an error message and the traceback
     except IndexError:
         traceback.print_exc()
@@ -365,11 +370,11 @@ def create_candy():
     close_db_connection_and_cursor(conn, cursor)
 
     # If the new id was not created, send the user a client error response
-    if(new_candy_id == -1):
+    if(new_candy_id == -1 or new_candy == None):
         return Response("Failed to create a new candy.", mimetype="text/plain", status=500)
     # If the new id was created, send the user the new candy in JSON format and a client success response
     else:
-        new_candy_json = json.dumps([candy_name, candy_description, candy_price, candy_image, user_id, new_candy_id], default=str)
+        new_candy_json = json.dumps(new_candy[0], default=str)
         return Response(new_candy_json, mimetype="application/json", status=201)
 
 # Creating a DELETE request to the "candy" endpoint to delete an exisiting candy
@@ -450,23 +455,11 @@ def delete_candy():
 # Creating a PATCH request to the "candy" endpoint to edit a candy
 @app.patch("/candy")
 def edit_candy():
-    # Opening the database and creating a cursor
-    conn = dbconnect.open_db_connection()
-    cursor = dbconnect.create_db_cursor(conn)
-
-    # Checking to see if the database connection is opened and whether the cursor is created
-    check_db_connection_and_cursor(conn, cursor)
-
-    # Initalizing the unedited candy as a variable and assigning it a value so that it can still be referenced after the try-except block
-    old_candy = None
-    
-    # Creating a try-except block to catch errors when getting all the old candies from the database
+    # Creating a try-except block to catch errors when getting the user and candy id from the user
     try:
         # Converting the candy and user id into an integer and getting the unedited candy from the database
         candy_id = int(request.json['candyId'])
         user_id = int(request.json['userId'])
-        cursor.execute("SELECT name, description, price_in_dollars, image_url, user_id, id FROM candy WHERE user_id = ? AND id = ?", [user_id, candy_id])
-        old_candy = cursor.fetchall()
     # Raising the KeyError exception if the user sends data with the incorrect key names
     except KeyError:
         traceback.print_exc()
@@ -474,7 +467,7 @@ def edit_candy():
     # Raising an IndexError exception if the user enters an id that does not exist in the database
     except IndexError:
         traceback.print_exc()
-        print(f"The candy id of {candy_id} or user id of {user_id} does not exist in the database.")
+        print("The candy id or user id does not exist in the database.")
     # Raising the TypeError exception if the user sends an id that has a data type other than an integer, printing an error message and the traceback
     except TypeError:
         traceback.print_exc()
@@ -489,6 +482,37 @@ def edit_candy():
         traceback.print_exc()
         # If the database failed to delete the candy, send a client error response
         return Response("Invalid data was sent to the database. Failed to edit candy.", mimetype="text/plain", status=400)
+
+    # Opening the database and creating a cursor
+    conn = dbconnect.open_db_connection()
+    cursor = dbconnect.create_db_cursor(conn)
+
+    # Checking to see if the database connection is opened and whether the cursor is created
+    check_db_connection_and_cursor(conn, cursor)
+
+    # Initalizing the unedited candy as a variable and assigning it a value so that it can still be referenced after the try-except block
+    old_candy = None
+
+    # Creating a try-except block to catch errors when getting all the old candies from the database
+    try:
+        cursor.execute("SELECT c.name, c.description, c.price_in_dollars, c.image_url, c.user_id, c.id, u.username FROM users u INNER JOIN candy c WHERE u.id = ? AND c.id = ?", [user_id, candy_id])
+        old_candy = cursor.fetchall()
+    # Raising the OperationalError exception for things that are not in control of the programmer, printing an error message and the traceback
+    except mariadb.OperationalError:
+        traceback.print_exc()
+        print("An operational error has occured when retrieving the edited candy from the database.")
+    # Raising the ProgrammingError exception for errors made by the programmer, printing an error message and the traceback
+    except mariadb.ProgrammingError:
+        traceback.print_exc()
+        print("Invalid SQL syntax.")
+    # Raising the DatabaseError exception for errors related to the database, printing an error message and the traceback
+    except mariadb.DatabaseError:
+        traceback.print_exc()
+        print("Errors detected in the database and resulted in a connection failure.")
+    # Raising a general exception to catch all other errors, printing a general error message and the traceback
+    except:
+        traceback.print_exc()
+        print("An error has occured.")
 
     # Closing the cursor and database connection
     close_db_connection_and_cursor(conn, cursor)
@@ -556,8 +580,9 @@ def edit_candy():
     # Checking to see if the database connection is opened and whether the cursor is created
     check_db_connection_and_cursor(conn, cursor)
 
-    # Initializing the row count and assigning it a value so that it can still be referenced after the try-except block
+    # Initializing the variables and assigning it a value so that it can still be referenced after the try-except block
     row_count = 0
+    edited_candy = None
 
     # Creating a try-except block to catch errors when updating the candy to the database
     try:
@@ -566,6 +591,10 @@ def edit_candy():
         conn.commit()
         # Getting the number of rows that have been updated in the database
         row_count = cursor.rowcount
+
+        # Getting the updated candy with the user's username from the database
+        cursor.execute("SELECT c.name, c.description, c.price_in_dollars, c.image_url, c.user_id, c.id, u.username FROM users u INNER JOIN candy c WHERE u.id = ? AND c.id = ?", [user_id, candy_id])
+        edited_candy = cursor.fetchall()
     # Raising an IntegrityError exception if the user sends data that conflicts with the key contraints, printing an error message and the traceback
     except mariadb.IntegrityError:
         traceback.print_exc()
@@ -595,11 +624,11 @@ def edit_candy():
     close_db_connection_and_cursor(conn, cursor)
 
     # If the edited candy was successfully stored into the database, send the user the edited candy in JSON format and a client success response
-    if(row_count == 1):
-        edited_candy_json = json.dumps([candy_name, candy_description, candy_price, candy_image, user_id, candy_id], default=str)
+    if(row_count == 1 and edited_candy != None):
+        edited_candy_json = json.dumps(edited_candy[0], default=str)
         return Response(edited_candy_json, mimetype="application/json", status=200)
-    # If the user did not modify their candy post, send the user back the old candy data
-    elif(row_count == 0):
+    # If the user did not modify their candy post, send the user back the old candy data and a client success response
+    elif(row_count == 0 and edited_candy !=None):
         old_candy_json = json.dumps(old_candy[0], default=str)
         return Response(old_candy_json, mimetype="application/json", status=200)
     # If the database failed to store the edited candy, send the user a server error response
