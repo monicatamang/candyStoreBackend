@@ -79,6 +79,10 @@ def create_user():
         conn.commit()
         # Getting the new id of the new user created
         new_user_id = cursor.lastrowid
+    # Raising the UnboundLocalError exception if one or more variables don't exist due to invalid data being sent to the database, printing an error message and the traceback
+    except UnboundLocalError:
+        traceback.print_exc()
+        print("Data Error. Referencing variables that are not declared. User sent a username or password without content.")
     # Raising the DataError exception if the database is unable to process the data, printing an error message and the traceback
     except mariadb.DataError:
         traceback.print_exc()
@@ -130,7 +134,7 @@ def login_user():
 
         # If the username or password is not provided by the user, send a client error response
         if(username == None or username == "" or password == None or password == ""):
-            return Response("Username and password do not match the database records.", mimetype="text/plain", status=401)
+            return Response("Username and password do not match the database records.", mimetype="text/plain", status=400)
     # Raising the KeyError exception if the user sends data with the incorrect key names, printing an error message and the traceback
     except KeyError:
         traceback.print_exc()
@@ -152,7 +156,7 @@ def login_user():
         traceback.print_exc()
         print("An error has occured.")
         # Sending the user a client error response and stopping the function from running the next lines of code that interacts with the database
-        return Response("Username and password do not match the database records.", mimetype="text/plain", status=401)
+        return Response("Username and password do not match the database records.", mimetype="text/plain", status=400)
     
     # Opening the database and creating a cursor
     conn = dbconnect.open_db_connection()
@@ -213,7 +217,7 @@ def login_user():
         return Response(user_login_json, mimetype="application/json", status=200)
     # If the username and password do not match, send a client error response
     else:
-        return Response("Failed to login.", mimetype="text/plain", status=500)
+        return Response("Failed to log in.", mimetype="text/plain", status=500)
 
 # Creating a GET request to the "candy" endpoint to get all candies
 @app.get("/candy")
@@ -594,6 +598,10 @@ def edit_candy():
     if(row_count == 1):
         edited_candy_json = json.dumps([candy_name, candy_description, candy_price, candy_image, user_id, candy_id], default=str)
         return Response(edited_candy_json, mimetype="application/json", status=200)
+    # If the user did not modify their candy post, send the user back the old candy data
+    elif(row_count == 0):
+        old_candy_json = json.dumps(old_candy[0], default=str)
+        return Response(old_candy_json, mimetype="application/json", status=200)
     # If the database failed to store the edited candy, send the user a server error response
     else:
         return Response("Failed to edit candy.", mimetype="text/plain", status=500)
