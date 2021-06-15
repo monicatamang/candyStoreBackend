@@ -1,3 +1,4 @@
+from os import stat
 from flask import Flask, request, Response
 import mariadb
 import dbconnect
@@ -21,7 +22,8 @@ def check_db_connection_and_cursor(conn, cursor):
         print("An error has occured in the database.")
         dbconnect.close_cursor(cursor)
         dbconnect.close_db_connection(conn)
-        return
+        return False
+    return True
 
 # Intializing the flask server and CORS to allow any origin to make requests
 app = Flask(__name__)
@@ -39,35 +41,40 @@ def create_user():
         # If the username or password is not provided by the user, send a client error response
         if(username == None or username == "" or password == None or password == ""):
             return Response("Data Error. Invalid data was sent to the database.", mimetype="text/plain", status=400)
-    # Raising the KeyError exception if the user sends data with the incorrect key names, printing an error message and the traceback
+    # Raising the KeyError exception if the user sends data with the incorrect key names, printing an error message, the traceback and a client error response
     except KeyError:
         traceback.print_exc()
         print("Key Error. Incorrect Key name for username or password.")
-    # Raising the UnboundLocalError exception if one or more variables don't exist due to invalid data being sent to the database, printing an error message and the traceback
+        return Response("Data Error. Invalid data was sent to the database.", mimetype="text/plain", status=400)
+    # Raising the UnboundLocalError exception if one or more variables don't exist due to invalid data being sent to the database, printing an error message, the traceback and a client error response
     except UnboundLocalError:
         traceback.print_exc()
         print("Data Error. Referencing variables that are not declared. User sent a username or password without content.")
-    # Raising the TypeError exception if the user sends data with inappropriate data types, printing an error message and the traceback
+        return Response("Data Error. Invalid data was sent to the database.", mimetype="text/plain", status=400)
+    # Raising the TypeError exception if the user sends data with inappropriate data types, printing an error message, the traceback and a client error response
     except TypeError:
         traceback.print_exc()
         print("Data Error. Invalid data type for username or password.")
-    # Raising the ValueError exception if the user sends data with appropriate data types but invalid values, printing an error message and the traceback
+        return Response("Data Error. Invalid data was sent to the database.", mimetype="text/plain", status=400)
+    # Raising the ValueError exception if the user sends data with appropriate data types but invalid values, printing an error message, the traceback and a client error response
     except ValueError:
         traceback.print_exc()
         print("Invalid data was sent to the database.")
-    # Raising a general exception to catch all other errors, printing a general error message and the traceback
+        return Response("Data Error. Invalid data was sent to the database.", mimetype="text/plain", status=400)
+    # Raising a general exception to catch all other errors, printing a general error message, the traceback and a client error response
     except:
         traceback.print_exc()
         print("An error has occured.")
-        # Sending the user a client error response and stopping the function from running the next lines of code that interacts with the database
         return Response("Data Error. Invalid data was sent to the database.", mimetype="text/plain", status=400)
 
     # Opening the database and creating a cursor
     conn = dbconnect.open_db_connection()
     cursor = dbconnect.create_db_cursor(conn)
 
-    # Checking to see if the database connection is opened and whether the cursor is created
-    check_db_connection_and_cursor(conn, cursor)
+    # Checking to see if the database connection is opened and whether the cursor is created. If the database connection failed, send a server error response
+    check_database = check_db_connection_and_cursor(conn, cursor)
+    if(check_database == False):
+        return Response("Database connection failed.", mimetype="text/plain", status=500)
 
     # Assigning the new id of the user to be a negative number to indicate that a new id was not created
     new_user_id = -1
@@ -79,34 +86,41 @@ def create_user():
         conn.commit()
         # Getting the new id of the new user created
         new_user_id = cursor.lastrowid
-    # Raising the UnboundLocalError exception if one or more variables don't exist due to invalid data being sent to the database, printing an error message and the traceback
+    # Raising the UnboundLocalError exception if one or more variables don't exist due to invalid data being sent to the database, printing an error message, the traceback and the server error response
     except UnboundLocalError:
         traceback.print_exc()
         print("Data Error. Referencing variables that are not declared. User sent a username or password without content.")
-    # Raising the DataError exception if the database is unable to process the data, printing an error message and the traceback
+        return Response("Database connection failed.", mimetype="text/plain", status=500)
+    # Raising the DataError exception if the database is unable to process the data, printing an error message, the traceback and a server error response
     except mariadb.DataError:
         traceback.print_exc()
         print("Data Error. Invalid data was sent to the database.")
-    # Raising an IntegrityError exception if the username that already exists in the database, printing an error message and the traceback
+        return Response("Database connection failed.", mimetype="text/plain", status=500)
+    # Raising an IntegrityError exception if the username that already exists in the database, printing an error message, the traceback and a server error response
     except mariadb.IntegrityError:
         traceback.print_exc()
         print(f"Unique key constraint failure. {username} already exists in the database.")
-    # Raising the OperationalError exception for things that are not in control of the programmer, printing an error message and the traceback
+        return Response("Database connection failed.", mimetype="text/plain", status=500)
+    # Raising the OperationalError exception for things that are not in control of the programmer, printing an error message, the traceback and a server error response
     except mariadb.OperationalError:
         traceback.print_exc()
         print("An operational error has occured when creating the user.")
-    # Raising the ProgrammingError exception for errors made by the programmer, printing an error message and the traceback
+        return Response("Database connection failed.", mimetype="text/plain", status=500)
+    # Raising the ProgrammingError exception for errors made by the programmer, printing an error message, the traceback and a server error response
     except mariadb.ProgrammingError:
         traceback.print_exc()
         print("Invalid SQL syntax.")
-    # Raising the DatabaseError exception for errors related to the database, printing an error message and the traceback
+        return Response("Database connection failed.", mimetype="text/plain", status=500)
+    # Raising the DatabaseError exception for errors related to the database, printing an error message, the traceback and a server error response
     except mariadb.DatabaseError:
         traceback.print_exc()
         print("An error in the database has occured. Failed to create user.")
-    # Raising a general exception to catch all other errors, printing a general error message and the traceback
+        return Response("Database connection failed.", mimetype="text/plain", status=500)
+    # Raising a general exception to catch all other errors, printing a general error message, the traceback and a server error response
     except:
         traceback.print_exc()
         print("An error has occured.")
+        return Response("Database connection failed.", mimetype="text/plain", status=500)
 
     # Closing the cursor and database connection
     close_db_connection_and_cursor(conn, cursor)
@@ -135,35 +149,40 @@ def login_user():
         # If the username or password is not provided by the user, send a client error response
         if(username == None or username == "" or password == None or password == ""):
             return Response("Username and password do not match the database records.", mimetype="text/plain", status=400)
-    # Raising the KeyError exception if the user sends data with the incorrect key names, printing an error message and the traceback
+    # Raising the KeyError exception if the user sends data with the incorrect key names, printing an error message, the traceback and a client error response
     except KeyError:
         traceback.print_exc()
         print("Key Error. Incorrect Key name for the username or password.")
-    # Raising the UnboundLocalError exception if one or more variables don't exist due to invalid data being sent to the database, printing an error message and the traceback
+        return Response("Username and password do not match the database records.", mimetype="text/plain", status=400)
+    # Raising the UnboundLocalError exception if one or more variables don't exist due to invalid data being sent to the database, printing an error message, the traceback and a client error response
     except UnboundLocalError:
         traceback.print_exc()
         print("Data Error. Referencing variables that are not declared.")
-    # Raising the TypeError exception if the user sends data with inappropriate data types, printing an error message and the traceback
+        return Response("Username and password do not match the database records.", mimetype="text/plain", status=400)
+    # Raising the TypeError exception if the user sends data with inappropriate data types, printing an error message, the traceback and a client error response
     except TypeError:
         traceback.print_exc()
         print("Data Error. Invalid data type for username or password.")
-    # Raising the ValueError exception if the user sends data with appropriate data types but invalid values, printing an error message and the traceback
+        return Response("Username and password do not match the database records.", mimetype="text/plain", status=400)
+    # Raising the ValueError exception if the user sends data with appropriate data types but invalid values, printing an error message, the traceback and a client error response
     except ValueError:
         traceback.print_exc()
         print("Invalid data was sent to the database.")
-    # Raising a general exception to catch all other errors, printing a general error message and the traceback
+        return Response("Username and password do not match the database records.", mimetype="text/plain", status=400)
+    # Raising a general exception to catch all other errors, printing a general error message, the traceback and a client error response
     except:
         traceback.print_exc()
         print("An error has occured.")
-        # Sending the user a client error response and stopping the function from running the next lines of code that interacts with the database
         return Response("Username and password do not match the database records.", mimetype="text/plain", status=400)
     
     # Opening the database and creating a cursor
     conn = dbconnect.open_db_connection()
     cursor = dbconnect.create_db_cursor(conn)
 
-    # Checking to see if the database connection is opened and whether the cursor is created
-    check_db_connection_and_cursor(conn, cursor)
+    # Checking to see if the database connection is opened and whether the cursor is created. If the database connection failed, send a server error response
+    check_database = check_db_connection_and_cursor(conn, cursor)
+    if(check_database == False):
+        return Response("Database connection failed.", mimetype="text/plain", status=500)
 
     # Initializing the variables so that it can still be used after the try-except block
     database_login_info = None
@@ -175,34 +194,41 @@ def login_user():
         cursor.execute("SELECT username, password, id FROM users WHERE username = ? AND password = ?", [username, password])
         database_login_info = cursor.fetchall()
         row_count = cursor.rowcount
-    # Raising the UnboundLocalError exception if one or more variables don't exist due to invalid data being sent to the database, printing an error message and the traceback
+    # Raising the UnboundLocalError exception if one or more variables don't exist due to invalid data being sent to the database, printing an error message, the traceback and a a server error response
     except UnboundLocalError:
         traceback.print_exc()
         print("Data Error. Referencing variables that are not declared.")
-    # Raising the DataError exception if the database is unable to process the data, printing an error message and the traceback
+        return Response("Failed to log in.", mimetype="text/plain", status=500)
+    # Raising the DataError exception if the database is unable to process the data, printing an error message, the traceback and a server error response
     except mariadb.DataError:
         traceback.print_exc()
         print("Data Error. Invalid data was sent to the database.")
-    # Raising an IntegrityError exception if the username that already exists in the database, printing an error message and the traceback
+        return Response("Failed to log in.", mimetype="text/plain", status=500)
+    # Raising an IntegrityError exception if the username that already exists in the database, printing an error message, the traceback and a server error response
     except mariadb.IntegrityError:
         traceback.print_exc()
         print(f"Unique key constraint failure. {username} already exists in the database.")
-    # Raising the OperationalError exception for things that are not in control of the programmer, printing an error message and the traceback
+        return Response("Failed to log in.", mimetype="text/plain", status=500)
+    # Raising the OperationalError exception for things that are not in control of the programmer, printing an error message, the traceback and a server error response
     except mariadb.OperationalError:
         traceback.print_exc()
         print("An operational error has occured when verifying the user's credentials.")
-    # Raising the ProgrammingError exception for errors made by the programmer, printing an error message and the traceback
+        return Response("Failed to log in.", mimetype="text/plain", status=500)
+    # Raising the ProgrammingError exception for errors made by the programmer, printing an error message, the traceback and a server error response
     except mariadb.ProgrammingError:
         traceback.print_exc()
         print("Invalid SQL syntax.")
-    # Raising the DatabaseError exception for errors related to the database, printing an error message and the traceback
+        return Response("Failed to log in.", mimetype="text/plain", status=500)
+    # Raising the DatabaseError exception for errors related to the database, printing an error message, the traceback and a server error response
     except mariadb.DatabaseError:
         traceback.print_exc()
         print("An error in the database has occured. Unable to verify the user's credentials.")
-    # Raising a general exception to catch all other errors, printing a general error message and the traceback
+        return Response("Failed to log in.", mimetype="text/plain", status=500)
+    # Raising a general exception to catch all other errors, printing a general error message, the traceback and a server error response
     except:
         traceback.print_exc()
         print("An error has occured.")
+        return Response("Failed to log in.", mimetype="text/plain", status=500)
 
     # Closing the cursor and database connection
     close_db_connection_and_cursor(conn, cursor)
@@ -226,8 +252,10 @@ def get_candy_list():
     conn = dbconnect.open_db_connection()
     cursor = dbconnect.create_db_cursor(conn)
 
-    # Checking to see if the database connection is opened and whether the cursor is created
-    check_db_connection_and_cursor(conn, cursor)
+    # Checking to see if the database connection is opened and whether the cursor is created. If the database connection failed, send a server error response
+    check_database = check_db_connection_and_cursor(conn, cursor)
+    if(check_database == False):
+        return Response("Database connection failed.", mimetype="text/plain", status=500)
 
     # Initializing the candy list and assigning it a value so that it can still be referenced after the try-except block
     candy_list = None
@@ -237,22 +265,26 @@ def get_candy_list():
         # Getting the all candies and username from the database, ordering the data by the candy post id in descending order
         cursor.execute("SELECT c.name, c.description, c.price_in_dollars, c.image_url, c.user_id, c.id, u.username FROM users u INNER JOIN candy c ON c.user_id = u.id ORDER BY c.id DESC")
         candy_list = cursor.fetchall()
-    # Raising the OperationalError exception for things that are not in control of the programmer, printing an error message and the traceback
+    # Raising the OperationalError exception for things that are not in control of the programmer, printing an error message, the traceback and a server error response
     except mariadb.OperationalError:
         traceback.print_exc()
         print("An operational error has occured when retrieving the all candies from the database.")
-    # Raising the ProgrammingError exception for errors made by the programmer, printing an error message and the traceback
+        return Response("Failed to retrieve all candy posts from database.", mimetype="application/json", status=500)
+    # Raising the ProgrammingError exception for errors made by the programmer, printing an error message, the traceback and a server error response
     except mariadb.ProgrammingError:
         traceback.print_exc()
         print("Invalid SQL syntax.")
-    # Raising the DatabaseError exception for errors related to the database, printing an error message and the traceback
+        return Response("Failed to retrieve all candy posts from database.", mimetype="application/json", status=500)
+    # Raising the DatabaseError exception for errors related to the database, printing an error message, the traceback and a server error response
     except mariadb.DatabaseError:
         traceback.print_exc()
         print("Errors detected in the database and resulted in a connection failure.")
-    # Raising a general exception to catch all other errors, printing a general error message and the traceback
+        return Response("Failed to retrieve all candy posts from database.", mimetype="application/json", status=500)
+    # Raising a general exception to catch all other errors, printing an error message, the traceback and a server error response
     except:
         traceback.print_exc()
         print("An error has occured.")
+        return Response("Failed to retrieve all candy posts from database.", mimetype="application/json", status=500)
 
     # Closing the cursor and database connection
     close_db_connection_and_cursor(conn, cursor)
@@ -288,35 +320,40 @@ def create_candy():
         # If the user chooses to create a candy post without adding a image URL, set the image URL as an empty string
         if(candy_image == None or candy_image == ""):
             candy_image = ""
-    # Raising the KeyError exception if the user sends data with the incorrect key names, printing an error message and the traceback
+    # Raising the KeyError exception if the user sends data with the incorrect key names, printing an error message, the traceback and a client error response
     except KeyError:
         traceback.print_exc()
         print("Key Error. Incorrect Key name of data.")
-    # Raising the UnboundLocalError exception if one or more variables don't exist due to invalid data being sent to the database, printing an error message and the traceback
+        return Response("Invalid data was sent to the database. Failed to create candy.", mimetype="text/plain", status=400)
+    # Raising the UnboundLocalError exception if one or more variables don't exist due to invalid data being sent to the database, printing an error message, the traceback and a client error response
     except UnboundLocalError:
         traceback.print_exc()
         print("Data Error. Referencing variables that are not declared.")
-    # Raising the TypeError exception if the user sends data with inappropriate data types, printing an error message and the traceback
+        return Response("Invalid data was sent to the database. Failed to create candy.", mimetype="text/plain", status=400)
+    # Raising the TypeError exception if the user sends data with inappropriate data types, printing an error message, the traceback and a client error response
     except TypeError:
         traceback.print_exc()
         print("Data Error. Invalid data type sent to the database.")
-    # Raising the ValueError exception if the user sends data with appropriate data types but invalid values, printing an error message and the traceback
+        return Response("Invalid data was sent to the database. Failed to create candy.", mimetype="text/plain", status=400)
+    # Raising the ValueError exception if the user sends data with appropriate data types but invalid values, printing an error message, the traceback and a client error response
     except ValueError:
         traceback.print_exc()
         print("Invalid data was sent to the database.")
-    # Raising a general exception to catch all other errors, printing a general error message and the traceback
+        return Response("Invalid data was sent to the database. Failed to create candy.", mimetype="text/plain", status=400)
+    # Raising a general exception to catch all other errors, printing a general error message, the traceback and a client error response
     except:
         traceback.print_exc()
         print("An error has occured.")
-        # Sending the user a client error response and stopping the function from running the next lines of code that interacts with the database
         return Response("Invalid data was sent to the database. Failed to create candy.", mimetype="text/plain", status=400)
 
     # If the user sends valid data, open the database connection and create a cursor
     conn = dbconnect.open_db_connection()
     cursor = dbconnect.create_db_cursor(conn)
 
-    # Checking to see if the database connection is opened and whether the cursor is created
-    check_db_connection_and_cursor(conn, cursor)
+    # Checking to see if the database connection is opened and whether the cursor is created. If the database connection failed, send a server error response
+    check_database = check_db_connection_and_cursor(conn, cursor)
+    if(check_database == False):
+        return Response("Database connection failed.", mimetype="text/plain", status=500)
 
     # Assign the new id of the candy to be a negative number which indicates that a new id was not created
     new_candy_id = -1
@@ -333,38 +370,41 @@ def create_candy():
         # Getting the new candy data and username from the database
         cursor.execute("SELECT c.name, c.description, c.price_in_dollars, c.image_url, c.user_id, c.id, u.username FROM users u INNER JOIN candy c ON c.user_id = u.id WHERE u.id = ? AND c.id = ?", [user_id, new_candy_id])
         new_candy = cursor.fetchall()
-    # Raising an IndexError exception if the user enters an id that does not exist in the database, printing an error message and the traceback
+    # Raising an IndexError exception if the user enters an id that does not exist in the database, printing an error message, the traceback and a client error response
     except IndexError:
         traceback.print_exc()
         print(f"User with an id of {user_id} does not exist in the database.")
-    # Raising the UnboundLocalError exception if one or more variables don't exist due to invalid data being sent to the database, printing an error message and the traceback
+        return Response("Failed to create a candy post.", mimetype="application/json", status=500)
+    # Raising the UnboundLocalError exception if one or more variables don't exist due to invalid data being sent to the database, printing an error message, the traceback and a client error response
     except UnboundLocalError:
         traceback.print_exc()
         print("Data Error. Referencing variables that are not declared.")
-    # Raising an IntegrityError exception if the user sends data that conflicts with the key contraints, printing an error message and the traceback
-    except mariadb.IntegrityError:
-        traceback.print_exc()
-        print("Unique key constraint failure. Candy name and description must be unique.")
-    # Raising the DataError exception if the database is unable to process the data, printing an error message and the traceback
+        return Response("Failed to create a candy post.", mimetype="application/json", status=500)
+    # Raising the DataError exception if the database is unable to process the data, printing an error message, the traceback and a client error response
     except mariadb.DataError:
         traceback.print_exc()
         print("Data Error. Invalid data was sent to the database.")
-    # Raising the OperationalError exception for things that are not in control of the programmer, printing an error message and the traceback
+        return Response("Failed to create a candy post.", mimetype="application/json", status=500)
+    # Raising the OperationalError exception for things that are not in control of the programmer, printing an error message, the traceback and a client error response
     except mariadb.OperationalError:
         traceback.print_exc()
         print(f"An operational error has occured when creating {candy_name}.")
-    # Raising the ProgrammingError exception for errors made by the programmer, printing an error message and the traceback
+        return Response("Failed to create a candy post.", mimetype="application/json", status=500)
+    # Raising the ProgrammingError exception for errors made by the programmer, printing an error message, the traceback and a client error response
     except mariadb.ProgrammingError:
         traceback.print_exc()
         print("Invalid SQL syntax.")
-    # Raising the DatabaseError exception for errors related to the database, printing an error message and the traceback
+        return Response("Failed to create a candy post.", mimetype="application/json", status=500)
+    # Raising the DatabaseError exception for errors related to the database, printing an error message, the traceback and a client error response
     except mariadb.DatabaseError:
         traceback.print_exc()
         print(f"An error in the database has occured. Failed to create {candy_name}.")
-    # Raising a general exception to catch all other errors, printing a general error message and the traceback
+        return Response("Failed to create a candy post.", mimetype="application/json", status=500)
+    # Raising a general exception to catch all other errors, printing a general error message, the traceback and a server error response
     except:
         traceback.print_exc()
         print("An error has occured.")
+        return Response("Failed to create a candy post.", mimetype="application/json", status=500)
     
     # Closing the cursor and database connection
     close_db_connection_and_cursor(conn, cursor)
@@ -385,35 +425,40 @@ def delete_candy():
         # Converting both ids into an integer data type
         candy_id = int(request.json['candyId'])
         user_id = int(request.json['userId'])
-    # Raising the KeyError exception if the user sends data with the incorrect key names
+    # Raising the KeyError exception if the user sends data with the incorrect key names, printing an error message, the traceback and a client error response
     except KeyError:
         traceback.print_exc()
         print("Key Error. Incorrect Key name of data.")
-    # Raising an IndexError exception if the user enters an id that does not exist in the database
+        return Response("Invalid data was sent to the database. Failed to delete candy.", mimetype="text/plain", status=400)
+    # Raising an IndexError exception if the user enters an id that does not exist in the database, printing an error message, the traceback and a client error response
     except IndexError:
         traceback.print_exc()
         print("The candy id or user id does not exist in the database.")
-    # Raising the TypeError exception if the user sends an id that has a data type other than an integer, printing an error message and the traceback
+        return Response("Invalid data was sent to the database. Failed to delete candy.", mimetype="text/plain", status=400)
+    # Raising the TypeError exception if the user sends an id that has a data type other than an integer, printing an error message, the traceback and a client error response
     except TypeError:
         traceback.print_exc()
         print("Data Error. Invalid data type sent to the database.")
-    # Raising the ValueError exception if the user sends data with appropriate data types but invalid values
+        return Response("Invalid data was sent to the database. Failed to delete candy.", mimetype="text/plain", status=400)
+    # Raising the ValueError exception if the user sends data with appropriate data types but invalid values, printing an error message, the traceback and a client error response
     except ValueError:
         traceback.print_exc()
         print("Invalid data was sent to the database.")
-    # Raising a general exception to catch all other errors, printing a general error message and the traceback
+        return Response("Invalid data was sent to the database. Failed to delete candy.", mimetype="text/plain", status=400)
+    # Raising a general exception to catch all other errors, printing a general error message, the traceback and a client error response
     except:
         traceback.print_exc()
         print("An error has occured.")
-        # Sending the user a client error response and stopping the function for running the next lines of code that interacts with the database
         return Response("Invalid data was sent to the database. Failed to delete candy.", mimetype="text/plain", status=400)
 
     # If the user sends a valid id, open the database connection and create a cursor
     conn = dbconnect.open_db_connection()
     cursor = dbconnect.create_db_cursor(conn)
 
-    # Checking to see if the database connection is opened and whether the cursor is created
-    check_db_connection_and_cursor(conn, cursor)
+    # Checking to see if the database connection is opened and whether the cursor is created. If the database connection failed, send a server error response
+    check_database = check_db_connection_and_cursor(conn, cursor)
+    if(check_database == False):
+        return Response("Database connection failed.", mimetype="text/plain", status=500)
 
     # Initializing the row count and assigning it a value so that it can still be referenced after the try-except block
     row_count = 0
@@ -425,22 +470,26 @@ def delete_candy():
         conn.commit()
         # Getting the number of rows that have been deleted from the database
         row_count = cursor.rowcount
-    # Raising the OperationalError exception for things that are not in control of the programmer, printing an error message and the traceback
+    # Raising the OperationalError exception for things that are not in control of the programmer, printing an error message, the traceback and a server error response
     except mariadb.OperationalError:
         traceback.print_exc()
         print(f"An operational error has occured. Failed to delete candy with an id of {candy_id} in the database.")
-    # Raising the ProgrammingError exception for errors made by the programmer, printing an error message and the traceback
+        return Response("Failed to delete candy post.", mimetype="application/json", status=500)
+    # Raising the ProgrammingError exception for errors made by the programmer, printing an error message, the traceback and a server error response
     except mariadb.ProgrammingError:
         traceback.print_exc()
         print("Invalid SQL syntax.")
-    # Raising the DatabaseError exception for errors related to the database, printing an error message and the traceback
+        return Response("Failed to delete candy post.", mimetype="application/json", status=500)
+    # Raising the DatabaseError exception for errors related to the database, printing an error message, the traceback and a server error response
     except mariadb.DatabaseError:
         traceback.print_exc()
         print(f"An error in the database has occured. Failed to delete candy with an id of {candy_id} in the database.")
-    # Raising a general exception to catch all other errors, printing a general error message and the traceback
+        return Response("Failed to delete candy post.", mimetype="application/json", status=500)
+    # Raising a general exception to catch all other errors, printing a general error message, the traceback and a server error response
     except:
         traceback.print_exc()
         print("An error has occured.")
+        return Response("Failed to delete candy post.", mimetype="application/json", status=500)
 
     # Closing the cursor and database connection
     close_db_connection_and_cursor(conn, cursor)
@@ -464,18 +513,22 @@ def edit_candy():
     except KeyError:
         traceback.print_exc()
         print("Key Error. Incorrect Key name for the user id or candy id.")
+        return Response("Invalid data was sent to the database. Failed to edit candy.", mimetype="text/plain", status=400)
     # Raising an IndexError exception if the user enters an id that does not exist in the database
     except IndexError:
         traceback.print_exc()
         print("The candy id or user id does not exist in the database.")
+        return Response("Invalid data was sent to the database. Failed to edit candy.", mimetype="text/plain", status=400)
     # Raising the TypeError exception if the user sends an id that has a data type other than an integer, printing an error message and the traceback
     except TypeError:
         traceback.print_exc()
         print("Data Error. Invalid data type sent to the database.")
+        return Response("Invalid data was sent to the database. Failed to edit candy.", mimetype="text/plain", status=400)
     # Raising the ValueError exception if the user sends data with appropriate data types but invalid values
     except ValueError:
         traceback.print_exc()
         print("Invalid data was sent to the database.")
+        return Response("Invalid data was sent to the database. Failed to edit candy.", mimetype="text/plain", status=400)
     # Raising a general exception to catch all other errors, printing a general error message and the traceback
     except:
         print("An error has occured.")
@@ -488,31 +541,37 @@ def edit_candy():
     cursor = dbconnect.create_db_cursor(conn)
 
     # Checking to see if the database connection is opened and whether the cursor is created
-    check_db_connection_and_cursor(conn, cursor)
+    check_database = check_db_connection_and_cursor(conn, cursor)
+    if(check_database == False):
+        return Response("Database connection failed.", mimetype="text/plain", status=500)
 
     # Initalizing the unedited candy as a variable and assigning it a value so that it can still be referenced after the try-except block
     old_candy = None
 
     # Creating a try-except block to catch errors when getting all the old candies from the database
     try:
-        cursor.execute("SELECT c.name, c.description, c.price_in_dollars, c.image_url, c.user_id, c.id, u.username FROM users u INNER JOIN candy c WHERE u.id = ? AND c.id = ?", [user_id, candy_id])
+        cursor.execute("SELECT c.name, c.description, c.price_in_dollars, c.image_url, c.user_id, c.id, u.username FROM users u INNER JOIN candy c ON u.id = c.user_id WHERE u.id = ? AND c.id = ?", [user_id, candy_id])
         old_candy = cursor.fetchall()
-    # Raising the OperationalError exception for things that are not in control of the programmer, printing an error message and the traceback
+    # Raising the OperationalError exception for things that are not in control of the programmer, printing an error message, the traceback and a server error response
     except mariadb.OperationalError:
         traceback.print_exc()
         print("An operational error has occured when retrieving the edited candy from the database.")
-    # Raising the ProgrammingError exception for errors made by the programmer, printing an error message and the traceback
+        return Response("Failed to edit candy.", mimetype="text/plain", status=500)
+    # Raising the ProgrammingError exception for errors made by the programmer, printing an error message, the traceback and a server error response
     except mariadb.ProgrammingError:
         traceback.print_exc()
         print("Invalid SQL syntax.")
-    # Raising the DatabaseError exception for errors related to the database, printing an error message and the traceback
+        return Response("Failed to edit candy.", mimetype="text/plain", status=500)
+    # Raising the DatabaseError exception for errors related to the database, printing an error message, the traceback and a server error response
     except mariadb.DatabaseError:
         traceback.print_exc()
         print("Errors detected in the database and resulted in a connection failure.")
-    # Raising a general exception to catch all other errors, printing a general error message and the traceback
+        return Response("Failed to edit candy.", mimetype="text/plain", status=500)
+    # Raising a general exception to catch all other errors, printing a general error message, the traceback and a server error response
     except:
         traceback.print_exc()
         print("An error has occured.")
+        return Response("Failed to edit candy.", mimetype="text/plain", status=500)
 
     # Closing the cursor and database connection
     close_db_connection_and_cursor(conn, cursor)
@@ -536,6 +595,7 @@ def edit_candy():
         # If the database contains the old candy description with valid content but the user updates the description without content, set the current description to the old candy description
         if((old_candy[0][1] != None or old_candy[0][1] != "") and (candy_description == None or candy_description == "")):
             candy_description = old_candy[0][1]
+
         # If the database contains the old candy description which initially had no content and the user has not updated the description with content, set the current description as an empty string
         elif((old_candy[0][1] == None or old_candy[0][1] == "") and (candy_description == None or candy_description == "")):
             candy_description == ""
@@ -547,30 +607,34 @@ def edit_candy():
         # If the database contains the old candy image with valid content but the user updates the image without content, set the current image to the old candy image
         if((old_candy[0][3] != None or old_candy[0][3] != "") and (candy_image == None or candy_image == "")):
             candy_image = old_candy[0][3]
+
         # If the database contains the old candy image url which initially had no content and the user has not updated the image url with content, set the current image url as an empty string
         elif((old_candy[0][3] == None or old_candy[0][3] == "") and (candy_image == None or candy_image == "")):
             candy_image == ""
-    # Raising the KeyError exception if the user sends data with the incorrect key names, printing an error message and the traceback
+    # Raising the KeyError exception if the user sends data with the incorrect key names, printing an error message, the traceback and a client error response
     except KeyError:
         traceback.print_exc()
         print("Key Error. Incorrect Key names.")
-    # Raising the UnboundLocalError exception if one or more variables don't exist due to invalid data being sent to the database
+        return Response("Invalid data was sent to the database. Failed to edit candy.", mimetype="text/plain", status=400)
+    # Raising the UnboundLocalError exception if one or more variables don't exist due to invalid data being sent to the database, printing an error message, the traceback and a client error response
     except UnboundLocalError:
         traceback.print_exc()
         print("Data Error. Referencing variables that are not declared.")
-    # Raising the TypeError exception if the user sends data with inappropriate data types, printing an error message and the traceback
+        return Response("Invalid data was sent to the database. Failed to edit candy.", mimetype="text/plain", status=400)
+    # Raising the TypeError exception if the user sends data with inappropriate data types, printing an error message, the traceback and a client error response
     except TypeError:
         traceback.print_exc()
         print("Data Error. Invalid data type sent to the database.")
-    # Raising the ValueError exception if the user sends data with appropriate data types but invalid values
+        return Response("Invalid data was sent to the database. Failed to edit candy.", mimetype="text/plain", status=400)
+    # Raising the ValueError exception if the user sends data with appropriate data types but invalid values, printing an error message, the traceback and a client error response
     except ValueError:
         traceback.print_exc()
         print("Invalid data was sent to the database.")
-    # Raising a general exception to catch all other errors, printing a general error message and the traceback
+        return Response("Invalid data was sent to the database. Failed to edit candy.", mimetype="text/plain", status=400)
+    # Raising a general exception to catch all other errors, printing an error message, the traceback and a client error response
     except:
         traceback.print_exc()
         print("An error has occured.")
-        # Sending the user a client error response and stopping the function from running the next lines of code that interacts with the database
         return Response("Invalid data was sent to the database. Failed to edit candy.", mimetype="text/plain", status=400)
     
     # If the user sends valid data, open the database connection and create a cursor 
@@ -578,7 +642,9 @@ def edit_candy():
     cursor = dbconnect.create_db_cursor(conn)
 
     # Checking to see if the database connection is opened and whether the cursor is created
-    check_db_connection_and_cursor(conn, cursor)
+    check_database = check_db_connection_and_cursor(conn, cursor)
+    if(check_database == False):
+        return Response("Database connection failed.", mimetype="text/plain", status=500)
 
     # Initializing the variables and assigning it a value so that it can still be referenced after the try-except block
     row_count = 0
@@ -595,30 +661,31 @@ def edit_candy():
         # Getting the updated candy with the user's username from the database
         cursor.execute("SELECT c.name, c.description, c.price_in_dollars, c.image_url, c.user_id, c.id, u.username FROM users u INNER JOIN candy c WHERE u.id = ? AND c.id = ?", [user_id, candy_id])
         edited_candy = cursor.fetchall()
-    # Raising an IntegrityError exception if the user sends data that conflicts with the key contraints, printing an error message and the traceback
-    except mariadb.IntegrityError:
-        traceback.print_exc()
-        print("Unique key constraint failure. Candy name and description must be unique.")
-    # Raising the DataError exception if the database is unable to process the data, printing an error message and the traceback
+    # Raising the DataError exception if the database is unable to process the data, printing an error message, the traceback and a server error response
     except mariadb.DataError:
         traceback.print_exc()
         print("Data Error. Invalid data was sent to the database.")
-    # Raising the OperationalError exception for things that are not in control of the programmer, printing an error message and the traceback
+        return Response("Failed to edit candy.", mimetype="text/plain", status=500)
+    # Raising the OperationalError exception for things that are not in control of the programmer, printing an error message, the traceback and a server error response
     except mariadb.OperationalError:
         traceback.print_exc()
         print(f"An operational error has occured. Failed to update {candy_name} to the database.")
-    # Raising the ProgrammingError exception for errors made by the programmer, printing an error message and the traceback
+        return Response("Failed to edit candy.", mimetype="text/plain", status=500)
+    # Raising the ProgrammingError exception for errors made by the programmer, printing an error message, the traceback and a server error response
     except mariadb.ProgrammingError:
         traceback.print_exc()
         print("Invalid SQL syntax.")
-    # Raising the DatabaseError exception for errors related to the database, printing an error message and the traceback
+        return Response("Failed to edit candy.", mimetype="text/plain", status=500)
+    # Raising the DatabaseError exception for errors related to the database, printing an error message, the traceback and a server error response
     except mariadb.DatabaseError:
         traceback.print_exc()
         print(f"An error in the database has occured. Failed to update {candy_name} to the database.")
-    # Raising a general exception to catch all other errors, printing a general error message and the traceback
+        return Response("Failed to edit candy.", mimetype="text/plain", status=500)
+    # Raising a general exception to catch all other errors, printing a general error message, the traceback and a server error response
     except:
         traceback.print_exc()
         print("An error has occured.")
+        return Response("Failed to edit candy.", mimetype="text/plain", status=500)
 
     # Closing the cursor and database connection
     close_db_connection_and_cursor(conn, cursor)
@@ -627,10 +694,6 @@ def edit_candy():
     if(row_count == 1 and edited_candy != None):
         edited_candy_json = json.dumps(edited_candy[0], default=str)
         return Response(edited_candy_json, mimetype="application/json", status=200)
-    # If the user did not modify their candy post, send the user back the old candy data and a client success response
-    elif(row_count == 0 and edited_candy !=None):
-        old_candy_json = json.dumps(old_candy[0], default=str)
-        return Response(old_candy_json, mimetype="application/json", status=200)
     # If the database failed to store the edited candy, send the user a server error response
     else:
         return Response("Failed to edit candy.", mimetype="text/plain", status=500)
