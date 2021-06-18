@@ -28,7 +28,7 @@ def check_db_connection_and_cursor(conn, cursor):
     return True
 
 # Creating a POST request to the "users" endpoint to create a new account for users
-@app.post("/users")
+@app.post("/api/users")
 def create_user():
     # Creating a try-except block to catch errors when users sign up
     try:
@@ -129,7 +129,7 @@ def create_user():
         return Response(new_signup_json, mimetype="application/json", status=201)
 
 # Created a POST request to the "login" endpoint to log in users into their exisiting account
-@app.post("/login")
+@app.post("/api/login")
 def login_user():
     # Using a try-except block to catch errors when the user logs in
     try:
@@ -230,7 +230,7 @@ def login_user():
         return Response("Failed to log in.", mimetype="text/plain", status=500)
 
 # Creating a GET request to the "candy" endpoint to get all candies
-@app.get("/candy")
+@app.get("/api/candy")
 def get_candy_list():
     # Opening the database and creating a cursor
     conn = dbconnect.open_db_connection()
@@ -278,7 +278,7 @@ def get_candy_list():
         return Response(candy_list_json, mimetype="application/json", status=200)
 
 # Creating a POST request to the "candy" endpoint to create a candy
-@app.post("/candy")
+@app.post("/api/candy")
 def create_candy():
     # Creating a try-except block to catch errors when receiving the user's data
     try:
@@ -391,7 +391,7 @@ def create_candy():
         return Response(new_candy_json, mimetype="application/json", status=201)
 
 # Creating a DELETE request to the "candy" endpoint to delete an exisiting candy
-@app.delete("/candy")
+@app.delete("/api/candy")
 def delete_candy():
     # Creating a try-except block to catch errors when receiving the candy and user id sent by the user
     try:
@@ -471,7 +471,7 @@ def delete_candy():
         return Response("Failed to delete candy.", mimetype="text/plain", status=500)
 
 # Creating a PATCH request to the "candy" endpoint to edit a candy
-@app.patch("/candy")
+@app.patch("/api/candy")
 def edit_candy():
     # Creating a try-except block to catch errors when getting the user and candy id from the user
     try:
