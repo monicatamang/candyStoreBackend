@@ -1,10 +1,12 @@
-from os import stat
 from flask import Flask, request, Response
 import mariadb
 import dbconnect
 import json
 import traceback
-from flask_cors import CORS
+import sys
+
+# Intializing the flask server and CORS to allow any origin to make requests
+app = Flask(__name__)
 
 # Creating a function that closes the database connection and the cursor
 def close_db_connection_and_cursor(conn, cursor):
@@ -24,10 +26,6 @@ def check_db_connection_and_cursor(conn, cursor):
         dbconnect.close_db_connection(conn)
         return False
     return True
-
-# Intializing the flask server and CORS to allow any origin to make requests
-app = Flask(__name__)
-CORS(app)
 
 # Creating a POST request to the "users" endpoint to create a new account for users
 @app.post("/users")
@@ -659,5 +657,19 @@ def edit_candy():
     else:
         return Response("Failed to edit candy.", mimetype="text/plain", status=500)
 
-# Running the flask server with debug mode turned on
-app.run(debug=True)
+if(len(sys.argv) > 1):
+    mode = sys.argv[1]
+else:
+    print("No mode argument, please pass a mode argument when invoking the file")
+    exit()
+
+if(mode == "production"):
+    import bjoern  # type: ignore
+    bjoern.run(app, "0.0.0.0", 5016)
+elif(mode == "testing"):
+    from flask_cors import CORS
+    CORS(app)
+    app.run(debug=True)
+else:
+    print("Invalid mode, please select either 'production' or 'testing'")
+    exit()
