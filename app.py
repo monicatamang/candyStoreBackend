@@ -657,12 +657,14 @@ def edit_candy():
     else:
         return Response("Failed to edit candy.", mimetype="text/plain", status=500)
 
+# Checking if an argument is given
 if(len(sys.argv) > 1):
     mode = sys.argv[1]
 else:
     print("No mode argument, please pass a mode argument when invoking the file")
     exit()
 
+# Configuring the mode
 if(mode == "production"):
     import bjoern  # type: ignore
     bjoern.run(app, "0.0.0.0", 5016)
