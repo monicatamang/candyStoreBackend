@@ -30,9 +30,9 @@ def login_user():
         # If the login token is not stored in the database, send a server error response
         if(is_user_logged_in == None):
             return Response("Failed to log in.", mimetype="text/plain", status=500)
-        # If the loging token is stored in the database, send a client success response with the user's id and username as JSON
+        # If the loging token is stored in the database, send a client success response with the user's id, username and login token as JSON
         else:
-            login_info = json.dumps({ 'id': user_info[0][2], 'username': user_info[0][0] }, default=str)
+            login_info = json.dumps({ 'id': user_info[0][2], 'username': user_info[0][0], 'loginToken': token }, default=str)
             return Response(login_info, mimetype="application/json", status=200)
     # If the username and password do not match, send a server error response
     else:

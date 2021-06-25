@@ -29,16 +29,12 @@ def signup_user():
     else:
         token = secrets.token_urlsafe(60)
         is_user_created = dbhelpers.run_insert_statement("INSERT INTO user_session(?, ?) VALUES(user_id, token)", [user_id, token])
-        # If the login token is stored into the database, send the user's id and username
+        # If the login token is stored into the database, send the user's id, username and login token
         if(len(is_user_created) == 1):
-            signup_info = {
-                'id': user_id,
-                'username': username
-            }
             # Convert data into JSON
-            signup_info_json = json.dumps(signup_info, default=str)
+            signup_info = json.dumps({ 'id': user_id, 'username': username, 'loginToken': token }, default=str)
             # Send a client success response
-            return Response(signup_info_json, mimetype="application/json", status=201)
+            return Response(signup_info, mimetype="application/json", status=201)
         # If the login token is not stored into database, send server error response
         else:
             return Response("Failed to create user.", mimetype="text/plain", status=500)
