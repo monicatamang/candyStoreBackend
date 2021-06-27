@@ -10,6 +10,10 @@ def signup_user():
     try:
         username = request.json['username']
         password = request.json['password']
+        
+        # If the user does not send a username or password, send a client error response
+        if(username == None or username == "" or password == None or password == ""):
+            return Response("Username and/or password is invalid.", mimetype="text/plain", status=400)
     except KeyError:
         traceback.print_exc()
         print("Key Error. Incorrect Key name for username or password.")
